@@ -63,12 +63,15 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            | tee build.log \
-            | xcpretty --color || true
+            2>&1 | tee build.log
 
       - name: Show build tail on failure
         if: failure()
-        run: tail -200 build.log
+        run: |
+          echo "===== LAST 300 LINES ====="
+          tail -300 build.log
+          echo "===== ERROR/WARNING GREP ====="
+          grep -E "(error:|warning:|Command .* failed)" build.log | head -50 || true
 
       - name: Upload build log
         if: always()
@@ -79,7 +82,7 @@ jobs:
           retention-days: 7
 
   package-unsigned:
-    name: Package unsigned .app
+    name: Package unsigned device .app
     needs: build
     runs-on: macos-15
     steps:
@@ -94,7 +97,7 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      - name: Build device .app (unsigned)
+      - name: Build device .app (unsigned, no entitlements)
         run: |
           set -o pipefail
           xcodebuild build \
@@ -107,13 +110,40 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM=""
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_ENTITLEMENTS="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            DEVELOPMENT_TEAM="" \
+            ENABLE_BITCODE=NO \
+            2>&1 | tee device-build.log
 
-      - name: Locate .app bundle
+      - name: Show device build tail on failure
+        if: failure()
         run: |
+          echo "===== LAST 300 LINES ====="
+          tail -300 device-build.log
+          echo "===== ERROR/WARNING GREP ====="
+          grep -E "(error:|Command .* failed|Provisioning|Entitlement|Signing)" device-build.log | head -80 || true
+
+      - name: Upload device build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-build-log
+          path: device-build.log
+          retention-days: 7
+
+      - name: Locate .app bundles
+        run: |
+          echo "===== ALL .app BUNDLES ====="
           find build -name "*.app" -type d
-          APP_PATH=$(find build -name "HRVStressWatch.app" -type d | head -1)
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "HRVStressWatch.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find build -name "HRVStressWatch.app" -type d | head -1)
+          fi
           echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+          echo "Selected: $APP_PATH"
+          ls -la "$APP_PATH" | head -30
 
       - name: Package as fake-ipa (Payload/*.app)
         run: |
@@ -121,6 +151,8 @@ jobs:
           cp -R "$APP_PATH" Payload/
           zip -qry HRVStressWatch-unsigned.ipa Payload
           ls -lh HRVStressWatch-unsigned.ipa
+          echo "===== IPA CONTENTS ====="
+          unzip -l HRVStressWatch-unsigned.ipa | head -30
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
