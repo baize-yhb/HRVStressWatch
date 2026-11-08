@@ -1,0 +1,107 @@
+name: HRVStressWatch
+options:
+  bundleIdPrefix: com.local
+  deploymentTarget:
+    iOS: "17.0"
+    watchOS: "10.0"
+  createIntermediateGroups: true
+  developmentLanguage: zh-Hans
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    GENERATE_INFOPLIST_FILE: NO
+
+targets:
+  HRVStressWatch:
+    type: application
+    platform: iOS
+    sources:
+      - path: iOS
+      - path: Shared
+    resources:
+      - path: iOS/Assets.xcassets
+    info:
+      path: iOS/Info.plist
+      properties:
+        CFBundleDisplayName: HRV压力
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSHealthShareUsageDescription: 读取心率变异性(HRV)数据以计算压力指数
+        NSHealthUpdateUsageDescription: 本应用不写入健康数据
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: iOS/HRVStressWatch.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access:
+          - sensitive-data
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.local.hrvstresswatch
+        TARGETED_DEVICE_FAMILY: "1,2"
+        INFOPLIST_FILE: iOS/Info.plist
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - target: HRVStressWatch Watch App
+        embed: true
+
+  HRVStressWatch Watch App:
+    type: application
+    platform: watchOS
+    sources:
+      - path: watchOS
+      - path: Shared
+    resources:
+      - path: watchOS/Assets.xcassets
+    info:
+      path: watchOS/Info.plist
+      properties:
+        CFBundleDisplayName: HRV压力
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        NSHealthShareUsageDescription: 读取心率变异性(HRV)数据以计算压力指数
+        NSHealthUpdateUsageDescription: 本应用不写入健康数据
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.local.hrvstresswatch
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: watchOS/HRVStressWatchWatch.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access:
+          - sensitive-data
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.local.hrvstresswatch.watchkitapp
+        INFOPLIST_FILE: watchOS/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        SDKROOT: watchos
+        SKIP_INSTALL: NO
+
+schemes:
+  HRVStressWatch:
+    build:
+      targets:
+        HRVStressWatch: all
+        HRVStressWatch Watch App: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
+  HRVStressWatch Watch App:
+    build:
+      targets:
+        HRVStressWatch Watch App: all
+    run:
+      config: Debug
+    archive:
+      config: Release
