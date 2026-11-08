@@ -144,6 +144,23 @@ jobs:
           echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
           echo "Selected: $APP_PATH"
           ls -la "$APP_PATH" | head -30
+          echo "===== WATCH APP EMBED CHECK ====="
+          if [ -d "$APP_PATH/Watch" ]; then
+            echo "Watch/ directory exists:"
+            ls -la "$APP_PATH/Watch/"
+            WATCH_APP=$(find "$APP_PATH/Watch" -maxdepth 1 -name "*.app" -type d | head -1)
+            if [ -n "$WATCH_APP" ]; then
+              echo "Watch App binary:"
+              file "$WATCH_APP/HRVStressWatch Watch App" 2>/dev/null || ls "$WATCH_APP"
+            else
+              echo "ERROR: No .app found in Watch/ directory"
+              exit 1
+            fi
+          else
+            echo "ERROR: Watch/ directory missing from iOS .app bundle"
+            echo "Watch App was NOT embedded. Sideloadly install will not deliver Watch app."
+            exit 1
+          fi
 
       - name: Package as fake-ipa (Payload/*.app)
         run: |
