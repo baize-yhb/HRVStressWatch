@@ -48,9 +48,6 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_FILE: iOS/Info.plist
         CODE_SIGN_STYLE: Automatic
-    dependencies:
-      - target: HRVStressWatch Watch App
-        embed: true
 
   HRVStressWatch Watch App:
     type: application

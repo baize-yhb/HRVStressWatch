@@ -97,16 +97,34 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      - name: Build device .app (unsigned, no entitlements)
+      - name: Build device Watch App (unsigned, watchos SDK)
         run: |
           set -o pipefail
           xcodebuild build \
             -project HRVStressWatch.xcodeproj \
-            -scheme "HRVStressWatch" \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
+            -target "HRVStressWatch Watch App" \
+            -sdk watchos \
             -configuration Release \
-            -derivedDataPath build \
+            -derivedDataPath build-watch \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_ENTITLEMENTS="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            DEVELOPMENT_TEAM="" \
+            ENABLE_BITCODE=NO \
+            2>&1 | tee watch-device-build.log
+
+      - name: Build device iOS App (unsigned, iphoneos SDK)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project HRVStressWatch.xcodeproj \
+            -target "HRVStressWatch" \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build-ios \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -120,56 +138,57 @@ jobs:
       - name: Show device build tail on failure
         if: failure()
         run: |
-          echo "===== LAST 300 LINES ====="
-          tail -300 device-build.log
-          echo "===== ERROR/WARNING GREP ====="
-          grep -E "(error:|Command .* failed|Provisioning|Entitlement|Signing)" device-build.log | head -80 || true
+          echo "===== IOS BUILD TAIL ====="
+          tail -200 device-build.log 2>/dev/null || echo "no ios log"
+          echo "===== WATCH BUILD TAIL ====="
+          tail -200 watch-device-build.log 2>/dev/null || echo "no watch log"
+          echo "===== ERROR GREP ====="
+          grep -E "(error:|Command .* failed|Provisioning|Entitlement|Signing)" device-build.log watch-device-build.log 2>/dev/null | head -80 || true
 
-      - name: Upload device build log
+      - name: Upload device build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: device-build-log
-          path: device-build.log
+          path: |
+            device-build.log
+            watch-device-build.log
           retention-days: 7
 
-      - name: Locate .app bundles
+      - name: Merge Watch App into iOS bundle
         run: |
-          echo "===== ALL .app BUNDLES ====="
-          find build -name "*.app" -type d
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "HRVStressWatch.app" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find build -name "HRVStressWatch.app" -type d | head -1)
-          fi
-          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
-          echo "Selected: $APP_PATH"
-          ls -la "$APP_PATH" | head -30
-          echo "===== WATCH APP EMBED CHECK ====="
-          if [ -d "$APP_PATH/Watch" ]; then
-            echo "Watch/ directory exists:"
-            ls -la "$APP_PATH/Watch/"
-            WATCH_APP=$(find "$APP_PATH/Watch" -maxdepth 1 -name "*.app" -type d | head -1)
-            if [ -n "$WATCH_APP" ]; then
-              echo "Watch App binary:"
-              file "$WATCH_APP/HRVStressWatch Watch App" 2>/dev/null || ls "$WATCH_APP"
-            else
-              echo "ERROR: No .app found in Watch/ directory"
-              exit 1
-            fi
-          else
-            echo "ERROR: Watch/ directory missing from iOS .app bundle"
-            echo "Watch App was NOT embedded. Sideloadly install will not deliver Watch app."
-            exit 1
-          fi
+          set -e
+          IOS_APP=$(find build-ios/Build/Products/Release-iphoneos -maxdepth 1 -name "HRVStressWatch.app" -type d | head -1)
+          WATCH_APP=$(find build-watch/Build/Products/Release-watchos -maxdepth 1 -name "*.app" -type d | head -1)
+
+          if [ -z "$IOS_APP" ]; then echo "ERROR: iOS .app not found"; find build-ios -name "*.app"; exit 1; fi
+          if [ -z "$WATCH_APP" ]; then echo "ERROR: Watch .app not found"; find build-watch -name "*.app"; exit 1; fi
+
+          echo "iOS App:   $IOS_APP"
+          echo "Watch App: $WATCH_APP"
+
+          mkdir -p "$IOS_APP/Watch"
+          cp -R "$WATCH_APP" "$IOS_APP/Watch/"
+
+          echo "===== MERGED BUNDLE ====="
+          ls -la "$IOS_APP"
+          echo "===== Watch/ subdir ====="
+          ls -la "$IOS_APP/Watch/"
+          echo "===== Watch App contents ====="
+          ls -la "$IOS_APP/Watch/$(basename "$WATCH_APP")"
+
+          echo "IOS_APP=$IOS_APP" >> $GITHUB_ENV
 
       - name: Package as fake-ipa (Payload/*.app)
         run: |
           mkdir -p Payload
-          cp -R "$APP_PATH" Payload/
+          cp -R "$IOS_APP" Payload/
           zip -qry HRVStressWatch-unsigned.ipa Payload
           ls -lh HRVStressWatch-unsigned.ipa
-          echo "===== IPA CONTENTS ====="
-          unzip -l HRVStressWatch-unsigned.ipa | head -30
+          echo "===== IPA CONTENTS (top level) ====="
+          unzip -l HRVStressWatch-unsigned.ipa | head -20
+          echo "===== Watch App presence check ====="
+          unzip -l HRVStressWatch-unsigned.ipa | grep -E "Watch/.*\.app/" | head -5 || (echo "ERROR: Watch App not in ipa"; exit 1)
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
