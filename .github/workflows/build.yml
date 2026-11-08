@@ -102,8 +102,9 @@ jobs:
           set -o pipefail
           xcodebuild build \
             -project HRVStressWatch.xcodeproj \
-            -target "HRVStressWatch Watch App" \
+            -scheme "HRVStressWatch Watch App" \
             -sdk watchos \
+            -destination 'generic/platform=watchOS' \
             -configuration Release \
             -derivedDataPath build-watch \
             CODE_SIGNING_ALLOWED=NO \
@@ -121,8 +122,9 @@ jobs:
           set -o pipefail
           xcodebuild build \
             -project HRVStressWatch.xcodeproj \
-            -target "HRVStressWatch" \
+            -scheme "HRVStressWatch" \
             -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -configuration Release \
             -derivedDataPath build-ios \
             CODE_SIGNING_ALLOWED=NO \
